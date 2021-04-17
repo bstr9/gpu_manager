@@ -1,1 +1,1 @@
-# gpu_manager
+# GPU Manager
