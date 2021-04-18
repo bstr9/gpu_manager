@@ -18,8 +18,9 @@ By the way, if the GPU use MPS mode, the multi processes will be transfered to M
 
 By the way, the multithreading mode can also use "streaming mode" of this repo -> [triton](https://github.com/triton-inference-server/server) 
 
-## Multiprocessing
+### Multiprocessing
 
 In Multiprocessing mode, multi processes share one gpu. Eg, process A and process B use the same gpu, in this way the cuda cores only calculate one process at the same time. This mode like "Round-Robin" in CPU, the GPU only do one calculate task at the same time, even though the task not use all the cuda cores or memory.
 
 The weakness of this mode is the GPU not fully be used, but also has benefit, the crash happened in process A won't cause process B crash.
+
