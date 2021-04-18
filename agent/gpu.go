@@ -1,4 +1,4 @@
-package main 
+package agent 
 
 import (
 	"github.com/docker/docker/client"

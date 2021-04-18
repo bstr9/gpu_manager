@@ -1,5 +1,7 @@
 module gpu_manager/agent
 
+replace gpu_manager => ../
+
 go 1.16
 
 require (
@@ -15,8 +17,8 @@ require (
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba // indirect
 	google.golang.org/grpc v1.37.0 // indirect
 	gotest.tools/v3 v3.0.3 // indirect
+	gpu_manager v0.0.0-00010101000000-000000000000
 )

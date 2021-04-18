@@ -1,52 +1,33 @@
-package main 
+package agent 
 
 import (
 	"context"
 	dc "github.com/docker/docker/client"
 	dctypes "github.com/docker/docker/api/types"
+	dcfilters "github.com/docker/docker/api/types/filters"
 	dcevents "github.com/docker/docker/api/types/events"
+	util "gpu_manager/util"
 )
 
-type ContainerStatus uint8 
+
+type DockerStatus uint8
 
 const (
-	ContainerStatusUnknown 	ContainerStatus = 0
-	ContainerStatusCreated 					= 1
-	ContainerStatusRunning 					= 2
-	ContainerStatusStopping 				= 3     
-	ContainerStatusStopped                  = 4
-	ContainerStatusDie     					= 5 
-	ContainerStatusExited  					= 6 
+	DockerStatusUnknown 	DockerStatus = 0
+	DockerStatusInitail 	DockerStatus = 1
+	DockerStatusRunning 	DockerStatus = 2 
+	DockerStatusStopped 	DockerStatus = 3
+	DockerStatusMayCrash 	DockerStatus = 4 // <- not sure what's happened
 )
 
-
-type Container struct {
-	Task 	    *Task
-	ContainerID string
-	Status 		ContainerStatus
-}
-
-func (c *Container) OnMessage(message dcevents.Message) error {
-}
-
-func (c *Container) Start() error {
-}
-
-func (c *Container) Stop() error {
-}
-
-func (c *Container) Kill() error {
-}
-
-// container report events:
-// attach, commit, copy, create, destroy, 
-// detach, die, exec_create, exec_detach, 
-// exec_start, exec_die, export, 
-// health_status, kill, oom, pause, rename, 
-// resize, restart, start, stop, top, unpause, update, and prune
 type DockerAgent struct {
-	client *dc.Client
-	containers []types.Container
+	client 				*dc.Client
+	ctx 				context.Context	
+	cancel 				context.CancelFunc
+	lock 				*util.RWMutex
+	containers 			map[string]dctypes.Container
+	status 				DockerStatus
+	lastValidTimestamp 	time.Time
 }
 
 func NewDockerAgent() (*DockerAgent, error) {
@@ -55,17 +36,99 @@ func NewDockerAgent() (*DockerAgent, error) {
 		return nil, err
 	}
 
-	return &DockerAgent{client: client}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &DockerAgent{
+		client: client,
+		ctx: ctx,
+		cancel: cancel,
+	}
 }
 
-func (agent *DockerAgent) Container(containerID string) {}
+func (a *DockerAgent) Run() error {
+	if a.client == nil {
+		return Error("docker agent not initilized")
+	}
+	filters := dcfilters.NewArgs()
+    filters.Add("type", "container")
+	filters.Add("label", "gpu=true")
+	options := dctypes.EventsOptions{
+		Since:   fmt.Sprintf("%d", a.lastValidTimestamp),
+        Filters: filters,
+    }
 
-func (agent *DockerAgent) Containers(options types.ContainerListOptions) ([]types.Container, error) {
-	return agent.client.ContainerList(context.Background(), options)
+    for {
+		events, errors := a.client.Events(a.ctx, options)
+
+    WATCH:
+        for {
+            select {
+			case msg := <-events:
+            	fmt.Printf("get event %v action %v \n", msg.Actor.Attributes["name"], msg.Action)
+				a.lastValidTimestamp = msg.Time
+				id := msg.Actor.ID
+				a.lock.Lock()
+				if container, ok := a.containers[id]; ok {
+					go container.OnMessage(msg)
+				} else {
+					container := &NewContainer(a) // TODO@bjw
+					a.containers[id] = container
+					go container.OnMessage(msg)
+				}
+				a.lock.Unlock()
+
+				// create / update
+                if event.Action == "create" || event.Action == "update" {
+                    name := event.Actor.Attributes["name"]
+                    image := event.Actor.Attributes["image"]
+                    delete(event.Actor.Attributes, "name")
+                    delete(event.Actor.Attributes, "image")
+                    container := &Container{
+                        ID:     event.Actor.ID,
+                        Name:   name,
+                        Image:  image,
+                        Labels: event.Actor.Attributes,
+                        Env:    make(map[string]string),
+                    }
+					info, err := a.client.ContainerInspect(w.ctx, event.Actor.ID)
+                    if err == nil {
+                        for _, env := range info.Config.Env {
+                            kv := strings.SplitN(env, "=", 2)
+                            if len(kv) >= 2 {
+                                container.Env[kv[0]] = kv[1]
+                            }
+                        }
+                    }
+					a.containers[container.ID] = container
+					a.containers[container.Name] = container
+                }
+
+                // Delete
+                if event.Action == "die" || event.Action == "kill" {
+                    delete(w.containers, event.Actor.ID)
+                    delete(w.containers, event.Actor.Attributes["name"])
+                }
+
+            case err := <-errors:
+                // Restart watch call
+                logp.Err("Error watching for docker events: %v", err)
+                time.Sleep(1 * time.Second)
+                break WATCH
+			case <-a.ctx.Done():
+                logp.Debug("docker", "Watcher stopped")
+                return
+            }
+        }
+    }
 }
 
-func (agent *DockerAgent) Stop(containerID string) {}
+func (a *DockerAgent) Container(containerID string) {}
 
-func (agent *DockerAgent) Kill(containerID string) {}
+func (a *DockerAgent) Containers(options types.ContainerListOptions) ([]types.Container, error) {
+	return a.client.ContainerList(context.Background(), options)
+}
 
-func (agent *DockerAgent) Clear(containerID string) {}
+func (a *DockerAgent) Stop(containerID string) {}
+
+func (a *DockerAgent) Kill(containerID string) {}
+
+func (a *DockerAgent) Clear(containerID string) {}
