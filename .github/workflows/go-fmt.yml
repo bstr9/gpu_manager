@@ -25,8 +25,4 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: test manager codes
-        run: go test ./manager
-        
-      - name: test agent codes
-        run: go test ./agent
-
+        run: go test 
