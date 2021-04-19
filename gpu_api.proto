@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package gpu_api;
+option go_package = "./;gpu_api";
+
+enum Error {
+    // No error occurred.
+    ERROR_OK = 0;
+    // Unknown error.
+    ERROR_UNKNOWN = 1;
+    // Bad request, the request are refused to continue.
+    ERROR_BAD_REQUEST = 2;
+    // The Api request can amdin only.
+    ERROR_PERMISSION_DENIED = 100;
+}
+
+// AgentStatus descripts status of agent.
+enum AgentStatus {
+    // Unknown status.
+    AGENT_STATUS_UNKNOWN = 0;
+    // The agent initial.
+    AGENT_STATUS_INITIAL = 1;
+    // The agent is health running.
+    AGENT_STATUS_HEALTH = 50;
+    // The agent unhealth.
+    AGENT_STATUS_UNHEALTH = 100;
+}
+
+// Meta is the information of agent.
+message Meta {
+    string Hostname = 1;
+    repeated string Labels = 2;
+    string Ip = 3;
+    string ServerName = 4;
+    AgentStatus Status = 5;
+}
+
+// TaskStatus descripts the life cycle of a task.
+enum TaskStatus {
+    // Unknown status.
+    TASK_STATUS_UNKNOWN = 0;
+
+    // The task initial.
+    // Manager send the status and agent create the task change status to created.
+    TASK_STATUS_INITIAL = 1;
+
+    // The task accepted by scheduler and created.
+    // Agent send the status and the manager send status waiting success or waiting kill.
+    TASK_STATUS_CREATED = 2;
+
+    // The task waiting success.
+    // Manager send the status and agent keep running status until success or exit.
+    TASK_STATUS_WAITING_SUCCESS = 51;
+
+    // The task waiting killed.
+    // Manager send the status and agent kill task and send exit status.
+    TASK_STATUS_WAITING_KILL = 52;
+
+    // The task is running.
+    // Agent keep the status when the task is running.
+    TASK_STATUS_RUNNING = 50;
+
+    // The task exited with unexcepted reason.
+    // Agent keep the status until manager send finished status or clear the task, 
+    // then delete the task.
+    TASK_STATUS_EXITED = 98;
+
+    // The task success.
+    // Agent keep the status until manager send finished status or clear the task,
+    // then delete the task.
+    TASK_STATUS_SUCCESS = 99;
+
+    // The task finished.
+    // Manager send the status until the agent delete the task.
+    TASK_STATUS_FINISHED = 100;
+}
+
+// TaskError return the error of a task.
+enum TaskError {
+    // Unknowm task error.
+    TASK_ERROR_UNKNOWN = 0;
+    // Everything is ok.
+    TASK_ERROR_OK = 1;
+}
+
+// Task is scheduling instance communicate with manager ane agent.
+message Task {
+    string TaskId = 1;
+    string TaskName = 2;
+    TaskStatus Status = 3;
+    string Image = 4;
+    repeated string Commands = 5;
+    repeated string Volumes = 6;
+    repeated string Environments = 7;
+    string ContainerId = 8;
+    string CreatedTime = 9;
+    string UpdatedTime = 10; 
+    string DeletedTime = 11;
+    TaskError Error = 12;
+    string ErrorInfo = 13;
+}
+
+// ReportRequest is the tasks' informations from agent.
+message ReportRequest {
+    Meta Meta = 1;
+    repeated Task Tasks = 2;
+}
+
+// ReportResponse is the tasks' excepted status from manager.
+message ReportResponse {
+    repeated Task Tasks = 1;
+}
+
+service GpuApi {
+    /*
+    rpc Ping() returns () {
+    };
+
+    rpc NewGpuTask() returns () {
+    };
+
+    rpc RequestGpuMemory() returns () {
+    };
+
+    rpc ReleaseGpuMemory() returns () {
+    };
+
+    rpc CancelTask() returns () {
+    };
+
+    rpc Metrics() returns () {
+    };
+    */
+
+    rpc Report(stream ReportRequest) returns(stream ReportResponse) {
+    };
+}
