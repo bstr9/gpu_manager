@@ -24,3 +24,9 @@ In Multiprocessing mode, multi processes share one gpu. Eg, process A and proces
 
 The weakness of this mode is the GPU not fully be used, but also has benefit, the crash happened in process A won't cause process B crash.
 
+## The k8s GPU plugin
+### Nvidia GPU plugin
+This repo almost do the same thing as the [nvidia gpu plugin](https://github.com/NVIDIA/k8s-device-plugin). The plugin only assign the gpu by the memory, and collect memories of gpus. The plugin do not manage any container (kill or pause) if the container use more memories than it applied. 
+
+## The design
+This repo contains a gpu manager and an agent. The agent collect informations of gpus in every machine of the cluster. And through the manager, any use can apply a gpu to create a new container.
