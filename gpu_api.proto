@@ -92,12 +92,13 @@ message Task {
     repeated string Commands = 5;
     repeated string Volumes = 6;
     repeated string Environments = 7;
-    string ContainerId = 8;
-    string CreatedTime = 9;
-    string UpdatedTime = 10; 
-    string DeletedTime = 11;
-    TaskError Error = 12;
-    string ErrorInfo = 13;
+    repeated uint32 Ports = 8;
+    string ContainerId = 9;
+    string CreatedTime = 10;
+    string UpdatedTime = 11; 
+    string DeletedTime = 12;
+    TaskError Error = 13;
+    string ErrorInfo = 14;
 }
 
 // ReportRequest is the tasks' informations from agent.

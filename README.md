@@ -30,3 +30,32 @@ This repo almost do the same thing as the [nvidia gpu plugin](https://github.com
 
 ## The design
 This repo contains a gpu manager and an agent. The agent collect informations of gpus in every machine of the cluster. And through the manager, any use can apply a gpu to create a new container.
+
+------------------------------------------
+    [User]  -
+             |
+             v
+         -------------
+        | GPU Manager |    ->    -----------------------------------------
+         -------------          |     Machine 1       |      Machine 2    |
+                                 -----------------------------------------
+                                | GPU0  | GPU1 | GPU2 |   GPU0   |  GPU1  |
+                                 -----------------------------------------
+                                | T1/T2 |      |      |   T3/T4  |   T5   |
+                                 -----------------------------------------
+
+    ----------------------
+   |      ----------      |
+   |     |  agent1  |     |
+   |      ----------      |
+   |       Machine1       |
+    ----------------------      
+
+         ---------------    --------------
+        | Docker Engine |  |     GPUS     |
+         ---------------    --------------
+
+
+ 
+        agent: 1. containers status            -> Manager  -> record memories usage in cluster  ||   user request gpu -> assign a gpu -> notify agent -> create a container
+               2. GPUs' Memories
