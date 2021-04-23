@@ -35,27 +35,34 @@ This repo contains a gpu manager and an agent. The agent collect informations of
     [User]  -
              |
              v
-         -------------
-        | GPU Manager |    ->    -----------------------------------------
-         -------------          |     Machine 1       |      Machine 2    |
-                                 -----------------------------------------
-                                | GPU0  | GPU1 | GPU2 |   GPU0   |  GPU1  |
-                                 -----------------------------------------
-                                | T1/T2 |      |      |   T3/T4  |   T5   |
-                                 -----------------------------------------
-
-    ----------------------
-   |      ----------      |
-   |     |  agent1  |     |
-   |      ----------      |
-   |       Machine1       |
-    ----------------------      
-
-         ---------------    --------------
-        | Docker Engine |  |     GPUS     |
-         ---------------    --------------
-
-
+         -------------                        data struct in memory
+        | GPU Manager |    ->       -----------------------------------------
+         -------------             |     Machine 1       |      Machine 2    |
+                |                   -----------------------------------------
+                | g                | GPU0  | GPU1 | GPU2 |   GPU0   |  GPU1  |
+                | r                 -----------------------------------------
+                | p                | T1/T2 |      |      |   T3/T4  |   T5   |
+                | c                 -----------------------------------------
+                v 
+        ----------------------
+       |      ----------      |
+       |     |  agent1  |     |
+       |      ----------      |
+       |       Machine1       |
+        ----------------------      
+               |           |__
+               | tcp          | nvml
+               v              v
+        ---------------    --------------
+       | Docker Engine |  |     GPUS     |
+        ---------------    --------------
+ -------------------------------------------
  
-        agent: 1. containers status            -> Manager  -> record memories usage in cluster  ||   user request gpu -> assign a gpu -> notify agent -> create a container
-               2. GPUs' Memories
+        agent do: 1. collect containers status            
+                  2. collect GPUs' Memories
+                  3. create container use gpu
+
+        manager do:  1. record memories usage in cluster  
+                     2. accept users' gpu request 
+                     3. assign a gpu 
+                     4. notify agent
