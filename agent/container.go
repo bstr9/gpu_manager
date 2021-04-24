@@ -71,7 +71,7 @@ func (c *Container) OnMessage(message dcevents.Message) error {
 	case "die":
 		event := NewEvent(ContainerStatusDead, EventActionUpdateInspect)
 		c.status = ContainerStatusDead
-		go c.client.OnMessage(event)
+		c.client.RecvMessage(event)
 	}
 }
 
@@ -101,4 +101,12 @@ type ContainerEvent struct {
 	toStatus   ContainerStatus
 	timestamp  time.Time
 	action     DockerEventAction
+}
+
+func (e ContainerEvent) Type() DockerEventType {
+	return DockerEventTypeContainer
+}
+
+func (e ContainerEvent) Action() DockerEventAction {
+	return e.action
 }

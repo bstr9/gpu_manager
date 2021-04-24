@@ -11,13 +11,6 @@ import (
 	dc "github.com/docker/docker/client"
 )
 
-type DockerEventAction uint8
-
-const (
-	EventActionUnknown          DockerEventAction = 0
-	EventActionUpdateContainers                   = 1
-)
-
 type DockerStatus uint8
 
 const (
@@ -30,7 +23,7 @@ const (
 
 type DockerAgent struct {
 	client             *dc.Client
-	msgC               chan ContainerEvent
+	msgC               chan DockerEvent
 	ticker             *time.Ticker
 	ctx                context.Context
 	cancel             context.CancelFunc
@@ -49,7 +42,7 @@ func NewDockerAgent() (*DockerAgent, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &DockerAgent{
 		client:             client,
-		msgC:               make(chan ContainerEvent, 10),
+		msgC:               make(chan DockerEvent, 10),
 		ticker:             time.NewTicker(1 * time.Second),
 		ctx:                ctx,
 		cancel:             cancel,
@@ -110,7 +103,30 @@ func (a *DockerAgent) Run() error {
 	}
 }
 
-func (a *DockerAgent) OnMessage() {
+type DockerEventAction uint8
+
+const (
+	EventActionUnknown          DockerEventAction = 0
+	EventActionUpdateContainers                   = 1
+)
+
+type DockerEventType uint8
+
+const (
+	DockerEventTypeUnknown   DockerEventType = 0
+	DockerEventTypeContainer                 = 1
+)
+
+type DockerEvent interface {
+	Type() DockerEventType
+	Action() DockerEventAction
+}
+
+func (a *DockerAgent) RecvMessage(event DockerAgent) {
+	a.msgC <- event
+}
+
+func (a *DockerAgent) OnMessage(event DockerEvent) {
 }
 
 func (a *DockerAgent) Container(containerID string) {}
