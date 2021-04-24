@@ -11,6 +11,13 @@ import (
 	dc "github.com/docker/docker/client"
 )
 
+type DockerEventAction uint8
+
+const (
+	EventActionUnknown          DockerEventAction = 0
+	EventActionUpdateContainers                   = 1
+)
+
 type DockerStatus uint8
 
 const (
@@ -52,40 +59,6 @@ func NewDockerAgent() (*DockerAgent, error) {
 		lastValidTimestamp: time.Now(),
 	}
 }
-
-/*
-	// create / update
-	if event.Action == "create" || event.Action == "update" {
-		name := event.Actor.Attributes["name"]
-		image := event.Actor.Attributes["image"]
-		delete(event.Actor.Attributes, "name")
-		delete(event.Actor.Attributes, "image")
-		container := &Container{
-			ID:     event.Actor.ID,
-			Name:   name,
-			Image:  image,
-			Labels: event.Actor.Attributes,
-			Env:    make(map[string]string),
-		}
-		info, err := a.client.ContainerInspect(w.ctx, event.Actor.ID)
-		if err == nil {
-			for _, env := range info.Config.Env {
-				kv := strings.SplitN(env, "=", 2)
-				if len(kv) >= 2 {
-					container.Env[kv[0]] = kv[1]
-				}
-			}
-		}
-		a.containers[container.ID] = container
-		a.containers[container.Name] = container
-	}
-
-	// Delete
-	if event.Action == "die" || event.Action == "kill" {
-		delete(w.containers, event.Actor.ID)
-		delete(w.containers, event.Actor.Attributes["name"])
-	}
-*/
 
 func (a *DockerAgent) Run() error {
 	if a.client == nil {
@@ -135,6 +108,9 @@ func (a *DockerAgent) Run() error {
 			return
 		}
 	}
+}
+
+func (a *DockerAgent) OnMessage() {
 }
 
 func (a *DockerAgent) Container(containerID string) {}

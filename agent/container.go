@@ -1,6 +1,10 @@
 package agent
 
-import util "gpu_manager/util"
+import (
+	"fmt"
+	util "gpu_manager/util"
+	"time"
+)
 
 type ContainerStatus uint8
 
@@ -24,9 +28,13 @@ type Container struct {
 	status ContainerStatus
 }
 
-func NewContainer(agent *DockerAgent) *Container {
+func NewContainer(agent *DockerAgent, task *Task, id string) *Container {
 	return &Container{
-		agent: agent,
+		lock:   util.NewMutex(fmt.Sprintf("Container_", id), 100*time.Millisecond),
+		agent:  agent,
+		task:   task,
+		id:     id,
+		status: ContainerStatusCreated,
 	}
 }
 
@@ -61,8 +69,21 @@ func (c *Container) OnMessage(message dcevents.Message) error {
 	case "stop":
 		c.status = ContainerStatusExited
 	case "die":
+		event := NewEvent(ContainerStatusDead, EventActionUpdateInspect)
 		c.status = ContainerStatusDead
+		go c.client.OnMessage(event)
 	}
+}
+
+func (c *Container) NewEvent(toStatus ContainerStatus, action DockerEventAction) ContainerEvent {
+	event := ContainerEvent{
+		id:         c.id,
+		fromStatus: c.status,
+		toStatus:   toStatus,
+		timestamp:  time.Now(),
+		action:     action,
+	}
+	return event
 }
 
 func (c *Container) Start() error {
@@ -75,4 +96,9 @@ func (c *Container) Kill() error {
 }
 
 type ContainerEvent struct {
+	id         string
+	fromStatus ContainerStatus
+	toStatus   ContainerStatus
+	timestamp  time.Time
+	action     DockerEventAction
 }
