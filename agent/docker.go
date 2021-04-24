@@ -23,11 +23,12 @@ const (
 
 type DockerAgent struct {
 	client             *dc.Client
-	events             chan ContainerEvent
+	msgC               chan ContainerEvent
+	ticker             *time.Ticker
 	ctx                context.Context
 	cancel             context.CancelFunc
 	lock               *util.RWMutex
-	containers         map[string]dctypes.Container
+	containers         map[string]*Container
 	status             DockerStatus
 	lastValidTimestamp time.Time
 }
@@ -40,10 +41,15 @@ func NewDockerAgent() (*DockerAgent, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &DockerAgent{
-		client: client,
-		events: make(chan ContainerEvent, 10),
-		ctx:    ctx,
-		cancel: cancel,
+		client:             client,
+		msgC:               make(chan ContainerEvent, 10),
+		ticker:             time.NewTicker(1 * time.Second),
+		ctx:                ctx,
+		cancel:             cancel,
+		lock:               util.NewMutex("agentLock", 100*time.Millisecond),
+		containers:         make(map[string]*Container),
+		status:             DockerStatusInitail,
+		lastValidTimestamp: time.Now(),
 	}
 }
 
@@ -93,42 +99,40 @@ func (a *DockerAgent) Run() error {
 		Filters: filters,
 	}
 
+	events, errors := a.client.Events(a.ctx, options)
 	for {
-		events, errors := a.client.Events(a.ctx, options)
-	WATCH:
-		for {
-			select {
-			case msg := <-events:
-				id := msg.Actor.ID
-				a.lock.Lock()
-				switch msg.Action {
-				case "create":
-					a.containers[id] = NewContainer(a) // todo
-				case "die", "kill":
-					if container, err := a.Container(id); err == nil {
-						go container.OnMessage(msg)
-					}
-				default:
-					if container, ok := a.Container(id); err == nil {
-						go container.OnMessage(msg)
-					} else {
-						a.containers[id] = NewContainer(a)
-						go a.containers[id].OnMessage(msg)
-					}
+		select {
+		case msg := <-events:
+			id := msg.Actor.ID
+			a.lock.Lock()
+			switch msg.Action {
+			case "create":
+				a.containers[id] = NewContainer(a) // todo
+			case "die", "kill":
+				if container, err := a.Container(id); err == nil {
+					go container.OnMessage(msg)
 				}
-				a.lastValidTimestamp = msg.Time
-				a.lock.Unlock()
-			case err := <-errors:
-				// Restart watch call
-				logp.Err("Error watching for docker events: %v", err)
-				time.Sleep(1 * time.Second)
-				break WATCH
-			case event := <-a.events:
-				a.OnMessage(event)
-			case <-a.ctx.Done():
-				logp.Debug("docker", "Watcher stopped")
-				return
+			default:
+				if container, ok := a.Container(id); err == nil {
+					go container.OnMessage(msg)
+				} else {
+					a.containers[id] = NewContainer(a)
+					go a.containers[id].OnMessage(msg)
+				}
 			}
+			a.lastValidTimestamp = msg.Time
+			a.lock.Unlock()
+		case err := <-errors:
+			// Restart watch call
+			logp.Err("Error watching for docker events: %v", err)
+			time.Sleep(1 * time.Second)
+			events, errors = a.client.Events(a.ctx, options)
+			break WATCH
+		case event := <-a.msgC:
+			a.OnMessage(event)
+		case <-a.ctx.Done():
+			logp.Debug("docker", "Watcher stopped")
+			return
 		}
 	}
 }
