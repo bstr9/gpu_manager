@@ -1,18 +1,20 @@
-package util 
+package util
 
 import (
+	"context"
+	"time"
+
 	goredis "github.com/go-redis/redis"
 )
 
-
 type RedisClient struct {
-	client 	*goredis.Client
-	name 	string
-	addr 	string
-	db 		int
+	client *goredis.Client
+	name   string
+	addr   string
+	db     int
 }
 
-func (c *RedisClient) Get(ctx context.Context, key string) (string, error){
+func (c *RedisClient) Get(ctx context.Context, key string) (string, error) {
 	cmd := c.client.Get(key)
 	return cmd.Result()
 }

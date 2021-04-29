@@ -1,8 +1,4 @@
-package agent 
-
-import (
-	"github.com/docker/docker/client"
-)
+package agent
 
 type GPUStatus uint8
 
@@ -11,9 +7,9 @@ const (
 )
 
 type GPU struct {
-	ID 			string
-	Status 		GPUStatus
-	memory 		uint64
+	ID              string
+	Status          GPUStatus
+	memory          uint64
 	availableMemory uint64
 }
 

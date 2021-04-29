@@ -2,9 +2,13 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	util "gpu_manager/util"
 	"time"
+
+	util "github.com/bstr9/gpu_manager/util"
+
+	log "github.com/sirupsen/logrus"
 
 	dctypes "github.com/docker/docker/api/types"
 	dcfilters "github.com/docker/docker/api/types/filters"
@@ -29,12 +33,13 @@ type DockerAgent struct {
 	cancel             context.CancelFunc
 	lock               *util.RWMutex
 	containers         map[string]*Container
+	tasks              map[string]*Task
 	status             DockerStatus
-	lastValidTimestamp time.Time
+	lastValidTimestamp int64
 }
 
 func NewDockerAgent() (*DockerAgent, error) {
-	client, err := dc.NewEnvironmentClient()
+	client, err := dc.NewClientWithOpts(dc.FromEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -46,20 +51,21 @@ func NewDockerAgent() (*DockerAgent, error) {
 		ticker:             time.NewTicker(1 * time.Second),
 		ctx:                ctx,
 		cancel:             cancel,
-		lock:               util.NewMutex("agentLock", 100*time.Millisecond),
+		lock:               util.NewRWMutex("agentLock", 100*time.Millisecond),
 		containers:         make(map[string]*Container),
+		tasks:              make(map[string]*Task),
 		status:             DockerStatusInitail,
-		lastValidTimestamp: time.Now(),
-	}
+		lastValidTimestamp: time.Now().Unix(),
+	}, nil
 }
 
 func (a *DockerAgent) Run() error {
 	if a.client == nil {
-		return Error("docker agent not initilized")
+		return errors.New("docker agent not initilized")
 	}
 	filters := dcfilters.NewArgs()
 	filters.Add("type", "container")
-	filters.Add("label", "gpu=true")
+	// filters.Add("label", "gpu=true")
 	options := dctypes.EventsOptions{
 		Since:   fmt.Sprintf("%d", a.lastValidTimestamp),
 		Filters: filters,
@@ -69,20 +75,23 @@ func (a *DockerAgent) Run() error {
 	for {
 		select {
 		case msg := <-events:
+			log.WithFields(log.Fields{
+				"message": msg,
+			}).Debug("watching docker events")
 			id := msg.Actor.ID
 			a.lock.Lock()
 			switch msg.Action {
 			case "create":
-				a.containers[id] = NewContainer(a) // todo
+				a.containers[id] = NewContainer(a, nil, id) // todo
 			case "die", "kill":
-				if container, err := a.Container(id); err == nil {
+				if container, ok := a.containers[id]; ok {
 					go container.OnMessage(msg)
 				}
 			default:
-				if container, ok := a.Container(id); err == nil {
+				if container, ok := a.containers[id]; ok {
 					go container.OnMessage(msg)
 				} else {
-					a.containers[id] = NewContainer(a)
+					a.containers[id] = NewContainer(a, nil, id)
 					go a.containers[id].OnMessage(msg)
 				}
 			}
@@ -90,15 +99,16 @@ func (a *DockerAgent) Run() error {
 			a.lock.Unlock()
 		case err := <-errors:
 			// Restart watch call
-			logp.Err("Error watching for docker events: %v", err)
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Error("watching docker events")
 			time.Sleep(1 * time.Second)
 			events, errors = a.client.Events(a.ctx, options)
-			break WATCH
 		case event := <-a.msgC:
 			a.OnMessage(event)
 		case <-a.ctx.Done():
-			logp.Debug("docker", "Watcher stopped")
-			return
+			log.Debug("watching docker stopped")
+			return nil
 		}
 	}
 }
@@ -122,16 +132,17 @@ type DockerEvent interface {
 	Action() DockerEventAction
 }
 
-func (a *DockerAgent) RecvMessage(event DockerAgent) {
-	a.msgC <- event
+func (a *DockerAgent) RecvMessage(evnet ContainerEvent) {
+	return
 }
 
 func (a *DockerAgent) OnMessage(event DockerEvent) {
+	return
 }
 
 func (a *DockerAgent) Container(containerID string) {}
 
-func (a *DockerAgent) Containers(options types.ContainerListOptions) ([]types.Container, error) {
+func (a *DockerAgent) Containers(options dctypes.ContainerListOptions) ([]dctypes.Container, error) {
 	return a.client.ContainerList(context.Background(), options)
 }
 

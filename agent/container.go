@@ -1,9 +1,11 @@
 package agent
 
 import (
-	"fmt"
-	util "gpu_manager/util"
 	"time"
+
+	util "github.com/bstr9/gpu_manager/util"
+	dcevents "github.com/docker/docker/api/types/events"
+	log "github.com/sirupsen/logrus"
 )
 
 type ContainerStatus uint8
@@ -30,7 +32,7 @@ type Container struct {
 
 func NewContainer(agent *DockerAgent, task *Task, id string) *Container {
 	return &Container{
-		lock:   util.NewMutex(fmt.Sprintf("Container_", id), 100*time.Millisecond),
+		lock:   util.NewRWMutex("container", 100*time.Millisecond),
 		agent:  agent,
 		task:   task,
 		id:     id,
@@ -52,7 +54,11 @@ func (c *Container) Id() string {
 
 // OnMessage: get event from docker agent, events are:
 // Actions: attach, commit, copy, create, destroy, detach, die, exec_create, exec_detach, exec_start, exec_die, export, health_status, kill, oom, pause, rename, resize, restart, start, stop, top, unpause, update, and prune
-func (c *Container) OnMessage(message dcevents.Message) error {
+func (c *Container) OnMessage(msg dcevents.Message) error {
+	log.WithFields(log.Fields{
+		"container": c.Id,
+		"message":   msg,
+	}).Info("container recv message")
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	switch msg.Action {
@@ -69,10 +75,11 @@ func (c *Container) OnMessage(message dcevents.Message) error {
 	case "stop":
 		c.status = ContainerStatusExited
 	case "die":
-		event := NewEvent(ContainerStatusDead, EventActionUpdateInspect)
+		event := c.NewEvent(ContainerStatusDead, EventActionUpdateContainers)
 		c.status = ContainerStatusDead
-		c.client.RecvMessage(event)
+		c.agent.RecvMessage(event)
 	}
+	return nil
 }
 
 func (c *Container) NewEvent(toStatus ContainerStatus, action DockerEventAction) ContainerEvent {
@@ -86,14 +93,14 @@ func (c *Container) NewEvent(toStatus ContainerStatus, action DockerEventAction)
 	return event
 }
 
-func (c *Container) Start() error {
-}
-
-func (c *Container) Stop() error {
-}
-
-func (c *Container) Kill() error {
-}
+//func (c *Container) Start() error {
+//}
+//
+//func (c *Container) Stop() error {
+//}
+//
+//func (c *Container) Kill() error {
+//}
 
 type ContainerEvent struct {
 	id         string

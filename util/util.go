@@ -2,12 +2,14 @@ package util
 
 import (
 	"math/rand"
-	log "github.com/sirupsen/logrus"
-	"unsafe"
 	"time"
+	"unsafe"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var logError = log.Error
+
 // String A-Z and 0-9.
 const strAtoZ0to9 = "ABDEFGHJKLMNPQRSTVWXY123456789"
 
@@ -28,4 +30,3 @@ func GenerateRandString(l int) string {
 	}
 	return string(result)
 }
-
