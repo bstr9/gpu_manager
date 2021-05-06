@@ -128,15 +128,28 @@ const (
 )
 
 type DockerEvent interface {
-	Type() DockerEventType
-	Action() DockerEventAction
-}
-
-func (a *DockerAgent) RecvMessage(evnet ContainerEvent) {
-	return
+	Type() 		DockerEventType
+	Action() 	DockerEventAction
 }
 
 func (a *DockerAgent) OnMessage(event DockerEvent) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	switch event.Type() {
+		case DockerEventTypeContainer:
+			msg := event.(ContainerEvent)
+			switch msg.Status() {
+			case ContainerStatusDead, ContainerStatusRemoved:
+				id := msg.Id()
+				if _, ok := a.containers[id]; ok {
+					delete(a.containers, id)
+				}
+			}
+	}
+	switch event.Action() {
+	case EventActionUpdateContainers:
+		return
+	}
 	return
 }
 

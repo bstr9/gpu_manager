@@ -10,16 +10,16 @@ import (
 
 type ContainerStatus uint8
 
-// "created","running","paused","restarting","removing","exited","dead"
+// "created","running","paused","restarting","exited","dead","removed"
 const (
 	ContainerStatusUnknown   ContainerStatus = 0
 	ContainerStatusCreated                   = 1
 	ContainerStatusRunning                   = 2
 	ContainerStatusPaused                    = 3
 	ContainerStatusRetarting                 = 4
-	ContainerStatusRemoving                  = 5
-	ContainerStatusExited                    = 6
-	ContainerStatusDead                      = 7
+	ContainerStatusExited                    = 5 
+	ContainerStatusDead                      = 6 
+	ContainerStatusRemoved                   = 255 
 )
 
 type Container struct {
@@ -54,6 +54,8 @@ func (c *Container) Id() string {
 
 // OnMessage: get event from docker agent, events are:
 // Actions: attach, commit, copy, create, destroy, detach, die, exec_create, exec_detach, exec_start, exec_die, export, health_status, kill, oom, pause, rename, resize, restart, start, stop, top, unpause, update, and prune
+// if use `docker stop xxx` command will recv these messages: kill -> die -> stop 
+// if use `docker pause xxx` command will recv message: pause, and if use `docker unpause xxx` command will recv messgae: unpause
 func (c *Container) OnMessage(msg dcevents.Message) error {
 	log.WithFields(log.Fields{
 		"container": c.Id,
@@ -68,16 +70,20 @@ func (c *Container) OnMessage(msg dcevents.Message) error {
 		c.status = ContainerStatusRunning
 	case "pause":
 		c.status = ContainerStatusPaused
+	case "unpause":
+		c.status = ContainerStatusRunning
 	case "restart":
 		c.status = ContainerStatusRetarting
 	case "destroy":
-		c.status = ContainerStatusRemoving
+		c.status = ContainerStatusRemoved
+		event := c.NewEvent(ContainerStatusRemoved, EventActionUpdateContainers)
+		c.agent.OnMessage(event)
 	case "stop":
 		c.status = ContainerStatusExited
 	case "die":
 		event := c.NewEvent(ContainerStatusDead, EventActionUpdateContainers)
 		c.status = ContainerStatusDead
-		c.agent.RecvMessage(event)
+		c.agent.OnMessage(event)
 	}
 	return nil
 }
@@ -108,6 +114,18 @@ type ContainerEvent struct {
 	toStatus   ContainerStatus
 	timestamp  time.Time
 	action     DockerEventAction
+}
+
+func (e ContainerEvent) Id() string {
+	return e.id
+}
+
+func (e ContainerEvent) FromStatus() ContainerStatus {
+	return e.fromStatus
+}
+
+func (e ContainerEvent) Status() ContainerStatus {
+	return e.toStatus
 }
 
 func (e ContainerEvent) Type() DockerEventType {
