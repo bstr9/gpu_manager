@@ -58,8 +58,9 @@ func (c *Container) Id() string {
 // if use `docker pause xxx` command will recv message: pause, and if use `docker unpause xxx` command will recv messgae: unpause
 func (c *Container) OnMessage(msg dcevents.Message) error {
 	log.WithFields(log.Fields{
-		"container": c.Id,
+		"container": c.Id(),
 		"message":   msg,
+		"action": msg.Action,
 	}).Info("container recv message")
 	c.lock.Lock()
 	defer c.lock.Unlock()

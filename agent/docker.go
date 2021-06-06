@@ -83,7 +83,7 @@ func (a *DockerAgent) Run() error {
 			switch msg.Action {
 			case "create":
 				a.containers[id] = NewContainer(a, nil, id) // todo
-			case "die", "kill":
+			case "die", "kill", "destroy":
 				if container, ok := a.containers[id]; ok {
 					go container.OnMessage(msg)
 				}
@@ -106,6 +106,9 @@ func (a *DockerAgent) Run() error {
 			events, errors = a.client.Events(a.ctx, options)
 		case event := <-a.msgC:
 			a.OnMessage(event)
+		case <-a.ticker.C:
+			a.lock.Lock()
+			a.lock.Unlock()
 		case <-a.ctx.Done():
 			log.Debug("watching docker stopped")
 			return nil
@@ -138,19 +141,17 @@ func (a *DockerAgent) OnMessage(event DockerEvent) {
 	switch event.Type() {
 		case DockerEventTypeContainer:
 			msg := event.(ContainerEvent)
+			id := msg.Id()
 			switch msg.Status() {
 			case ContainerStatusDead, ContainerStatusRemoved:
-				id := msg.Id()
 				if _, ok := a.containers[id]; ok {
 					delete(a.containers, id)
 				}
+			case ContainerStatusRunning:
+				// Do nothing
+				return
 			}
 	}
-	switch event.Action() {
-	case EventActionUpdateContainers:
-		return
-	}
-	return
 }
 
 func (a *DockerAgent) Container(containerID string) {}
